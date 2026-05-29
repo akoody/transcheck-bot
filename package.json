@@ -1,0 +1,41 @@
+{
+  "name": "transcheck-bot",
+  "version": "1.0.0",
+  "description": "Telegram bot for real-time USDT transfer monitoring across BEP20 and TRC20 wallets.",
+  "private": false,
+  "license": "MIT",
+  "author": "akoody",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "check": "npm run check:syntax",
+    "check:syntax": "find src -name '*.js' -print0 | xargs -0 -n1 node --check"
+  },
+  "keywords": [
+    "telegram-bot",
+    "blockchain",
+    "usdt",
+    "bsc",
+    "tron",
+    "bep20",
+    "trc20",
+    "monitoring"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/akoody/transcheck-bot.git"
+  },
+  "bugs": {
+    "url": "https://github.com/akoody/transcheck-bot/issues"
+  },
+  "homepage": "https://github.com/akoody/transcheck-bot#readme",
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "axios": "^1.13.6",
+    "dotenv": "^17.2.2",
+    "node-telegram-bot-api": "^0.67.0"
+  }
+}
