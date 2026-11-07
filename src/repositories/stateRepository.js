@@ -171,11 +171,24 @@ class StateRepository {
     return Boolean(wallet && wallet.seenTxHashes.includes(txHash));
   }
 
+  /**
+   * Сохраняет состояние атомарно: пишет во временный файл и переименовывает его.
+   * Сбой посреди записи не оставит битый JSON. Записи идут по очереди, а ошибка
+   * одной записи возвращается вызывающему, но не блокирует следующие.
+   */
   async persist() {
     const snapshot = JSON.stringify(this.state, null, 2);
+    const write = this.writeQueue.then(() => this.writeAtomically(snapshot));
 
-    this.writeQueue = this.writeQueue.then(() => fs.writeFile(this.filePath, snapshot, 'utf8'));
-    await this.writeQueue;
+    this.writeQueue = write.catch(() => {});
+    await write;
+  }
+
+  async writeAtomically(content) {
+    const tmpPath = `${this.filePath}.${process.pid}.tmp`;
+
+    await fs.writeFile(tmpPath, content, 'utf8');
+    await fs.rename(tmpPath, this.filePath);
   }
 }
 
