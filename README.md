@@ -21,8 +21,8 @@ Production-minded Telegram bot for tracking USDT transfers across BEP20 (BNB Sma
 - CommonJS modules
 - `node-telegram-bot-api` for Telegram long polling
 - `axios` for BSC/TRON API clients
-- Local JSON persistence with serialized writes
-- GitHub Actions syntax validation
+- Local JSON persistence with serialized, atomic writes (temp file + rename)
+- `node:test` unit tests and GitHub Actions CI
 
 ## Architecture
 
@@ -93,7 +93,9 @@ NODEREAL_API_KEY=
 npm run check
 ```
 
-The CI pipeline runs `npm ci` and syntax validation for every JavaScript file under `src/`.
+`npm run check` validates the syntax of every file under `src/` and runs the unit tests in `test/` with the built-in `node:test` runner (no extra dependencies). The tests cover address validation per network, alert formatting and HTML escaping, state persistence (ids, seen-transaction cap, atomic writes, recovery after a failed write) and the monitor loop with fake chain clients: threshold and `watchFromMs` filtering, incoming/outgoing detection, no duplicate alerts, retry when Telegram delivery fails and per-wallet backoff after API errors.
+
+CI runs `npm ci` and `npm run check` on every pull request and push to `main`.
 
 ## License
 

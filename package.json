@@ -9,8 +9,9 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
-    "check": "npm run check:syntax",
-    "check:syntax": "find src -name '*.js' -print0 | xargs -0 -n1 node --check"
+    "check": "npm run check:syntax && npm test",
+    "check:syntax": "find src -name '*.js' -print0 | xargs -0 -n1 node --check",
+    "test": "node --test test/*.test.js"
   },
   "keywords": [
     "telegram-bot",
