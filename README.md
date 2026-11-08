@@ -28,13 +28,15 @@ Production-minded Telegram bot for tracking USDT transfers across BEP20 (BNB Sma
 
 ```text
 src/
-  bot/                 Telegram commands, menus, callback flows
+  bot/                 Commands, inline buttons, menu, dialogs, screens and input parsing
   chains/              BSC and TRON blockchain clients
   config/              Environment parsing and runtime config
   repositories/        State persistence abstraction
   services/            Monitoring orchestration and alert delivery
   utils/               Formatting, validation, constants
 ```
+
+Limits protect shared resources: 30 wallets per user, 64-character wallet names and a 30-second cooldown on manual scans, which walk every user's wallets and spend RPC quota.
 
 The runtime flow is intentionally simple: Telegram handlers update user state, `MonitorService` polls configured wallets, chain clients normalize transactions, and the repository stores thresholds plus deduplication markers.
 
@@ -93,7 +95,7 @@ NODEREAL_API_KEY=
 npm run check
 ```
 
-`npm run check` validates the syntax of every file under `src/` and runs the unit tests in `test/` with the built-in `node:test` runner (no extra dependencies). The tests cover address validation per network, alert formatting and HTML escaping, state persistence (ids, seen-transaction cap, atomic writes, recovery after a failed write) and the monitor loop with fake chain clients: threshold and `watchFromMs` filtering, incoming/outgoing detection, no duplicate alerts, retry when Telegram delivery fails and per-wallet backoff after API errors.
+`npm run check` validates the syntax of every file under `src/` and runs the unit tests in `test/` with the built-in `node:test` runner (no extra dependencies). The tests cover bot commands, buttons and dialogs through a fake Telegram client, address validation per network, alert formatting and HTML escaping, state persistence (ids, seen-transaction cap, atomic writes, recovery after a failed write) and the monitor loop with fake chain clients: threshold and `watchFromMs` filtering, incoming/outgoing detection, no duplicate alerts, retry when Telegram delivery fails and per-wallet backoff after API errors.
 
 CI runs `npm ci` and `npm run check` on every pull request and push to `main`.
 

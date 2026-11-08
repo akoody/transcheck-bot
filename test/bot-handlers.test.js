@@ -77,7 +77,7 @@ async function setup(overrides = {}) {
       };
     }
   };
-  registerHandlers({ bot, stateRepository, defaultThreshold: 1000, monitorService });
+  registerHandlers({ bot, stateRepository, defaultThreshold: 1000, monitorService, now: overrides.now, onError: overrides.onError });
   return { bot, stateRepository, monitorService };
 }
 
@@ -254,4 +254,55 @@ test('help lists the commands and unknown text is ignored', async () => {
   const before = bot.sent.length;
   await bot.say('просто текст');
   assert.equal(bot.sent.length, before);
+});
+
+test('wallet names and the number of wallets are limited', async () => {
+  const { bot, stateRepository } = await setup();
+  await bot.say(`/add bep20 ${BEP20} ${'x'.repeat(65)}`);
+  assert.match(bot.last().text, /слишком длинное/);
+  assert.equal(stateRepository.listUserWallets(USER).length, 0);
+
+  await bot.say(`/add bep20 ${BEP20} ok`);
+  await bot.say(`/rename 1 ${'y'.repeat(65)}`);
+  assert.match(bot.last().text, /слишком длинное/);
+  assert.equal(stateRepository.getWalletById(USER, 1).name, 'ok');
+
+  for (let i = 1; i < 30; i += 1) {
+    const address = `0x${String(i).padStart(40, '0')}`;
+    await stateRepository.addWallet(USER, { network: 'BEP20', address, name: `w${i}`, watchFromMs: 0 });
+  }
+  await bot.say(`/add trc20 ${TRC20} extra`);
+  assert.match(bot.last().text, /лимит: 30/);
+  assert.equal(stateRepository.listUserWallets(USER).length, 30);
+});
+
+test('manual scan is rate limited per user', async () => {
+  let time = 100_000;
+  const { bot, monitorService } = await setup({ now: () => time });
+
+  await bot.say('/scan_now');
+  await bot.say('/scan_now');
+  assert.equal(monitorService.ticks, 1);
+  assert.match(bot.last().text, /Подожди 30 с/);
+
+  await bot.say('/scan_now', 99);
+  assert.equal(monitorService.ticks, 2);
+
+  time += 30_000;
+  await bot.say('/scan_now');
+  assert.equal(monitorService.ticks, 3);
+});
+
+test('a failing handler is reported instead of rejecting', async () => {
+  const errors = [];
+  const { bot } = await setup({ onError: (error) => errors.push(error.message) });
+  bot.sendMessage = async () => {
+    throw new Error('ETELEGRAM: 403 Forbidden: bot was blocked by the user');
+  };
+
+  await assert.doesNotReject(bot.say('/menu'));
+  await assert.doesNotReject(bot.press('prompt_threshold_custom'));
+
+  assert.equal(errors.length, 2);
+  assert.match(errors[0], /blocked/);
 });

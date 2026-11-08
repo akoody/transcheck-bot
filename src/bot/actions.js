@@ -8,6 +8,10 @@ const {
 } = require('./keyboards');
 
 const HTML_MESSAGE = { parse_mode: 'HTML', disable_web_page_preview: true };
+const MAX_WALLET_NAME_LENGTH = 64;
+// Столько кошельков помещается в одно сообщение Telegram (4096 символов).
+const MAX_WALLETS_PER_USER = 30;
+const SCAN_COOLDOWN_MS = 30_000;
 
 function formatTs(tsMs) {
   return tsMs ? new Date(tsMs).toISOString() : 'never';
@@ -18,12 +22,32 @@ function walletLink(wallet) {
 }
 
 /** Действия бота: отправка экранов и операции с кошельками. */
-function createActions({ bot, stateRepository, monitorService, defaultThreshold }) {
+function createActions({ bot, stateRepository, monitorService, defaultThreshold, now = Date.now }) {
+  const lastScanAt = new Map();
+
+  async function rejectLongName(chatId, name) {
+    if (name.length <= MAX_WALLET_NAME_LENGTH) {
+      return false;
+    }
+
+    await bot.sendMessage(chatId, `Название слишком длинное: максимум ${MAX_WALLET_NAME_LENGTH} символа.`);
+    return true;
+  }
+
   async function sendMainMenu(chatId, text = 'Главное меню:') {
     await bot.sendMessage(chatId, text, getMainMenuMarkup());
   }
 
   async function addWallet({ chatId, userId, addPayload }) {
+    if (await rejectLongName(chatId, addPayload.name)) {
+      return false;
+    }
+
+    if (stateRepository.listUserWallets(userId).length >= MAX_WALLETS_PER_USER) {
+      await bot.sendMessage(chatId, `Достигнут лимит: ${MAX_WALLETS_PER_USER} кошельков. Удали ненужные.`);
+      return false;
+    }
+
     const network = normalizeNetwork(addPayload.network);
 
     if (!network) {
@@ -63,6 +87,10 @@ function createActions({ bot, stateRepository, monitorService, defaultThreshold 
   }
 
   async function renameWallet({ chatId, userId, walletId, name }) {
+    if (await rejectLongName(chatId, name)) {
+      return false;
+    }
+
     const updated = await stateRepository.renameWallet(userId, walletId, name);
 
     if (!updated) {
@@ -142,11 +170,21 @@ function createActions({ bot, stateRepository, monitorService, defaultThreshold 
     await bot.sendMessage(chatId, lines.join('\n'));
   }
 
-  async function runScanNow({ chatId }) {
+  async function runScanNow({ chatId, userId }) {
     if (!monitorService) {
       await bot.sendMessage(chatId, 'Монитор недоступен.');
       return;
     }
+
+    // Скан обходит кошельки всех пользователей и расходует лимиты RPC.
+    const waitMs = (lastScanAt.get(userId) ?? -Infinity) + SCAN_COOLDOWN_MS - now();
+
+    if (waitMs > 0) {
+      await bot.sendMessage(chatId, `Подожди ${Math.ceil(waitMs / 1000)} с перед следующей проверкой.`);
+      return;
+    }
+
+    lastScanAt.set(userId, now());
 
     try {
       await monitorService.tick();
